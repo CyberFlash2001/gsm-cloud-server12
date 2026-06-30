@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Battery Monitoring Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 5px;
+    }
+
+    .subtitle {
+      text-align: center;
+      color: #666;
+      margin-bottom: 20px;
+    }
+
+    .updated {
+      text-align: center;
+      color: #555;
+      margin-bottom: 20px;
+    }
+
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+
+    .card {
+      background: white;
+      padding: 20px;
+      border-radius: 14px;
+      text-align: center;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+
+    .card h2 {
+      margin: 0;
+      font-size: 16px;
+      color: #555;
+    }
+
+    .value {
+      font-size: 30px;
+      font-weight: bold;
+      margin-top: 10px;
+      color: #111;
+    }
+
+    .chart-box {
+      background: white;
+      padding: 20px;
+      border-radius: 14px;
+      margin-bottom: 20px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.12);
+    }
+
+    @media (max-width: 900px) {
+      .cards {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (max-width: 600px) {
+      .cards {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+
+<body>
+
+  <h1>Battery Monitoring Dashboard</h1>
+  <div class="subtitle">ESP32 Battery Data Logger - Azure MySQL Dashboard</div>
+
+  <div class="updated">
+    Last Updated: <span id="lastUpdated">--</span>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h2>Battery Voltage</h2>
+      <div class="value" id="voltage">-- V</div>
+    </div>
+
+    <div class="card">
+      <h2>Battery Current</h2>
+      <div class="value" id="current">-- A</div>
+    </div>
+
+    <div class="card">
+      <h2>State of Charge</h2>
+      <div class="value" id="soc">-- %</div>
+    </div>
+
+    <div class="card">
+      <h2>State of Health</h2>
+      <div class="value" id="soh">-- %</div>
+    </div>
+  </div>
+
+  <div class="cards">
+    <div class="card">
+      <h2>Temperature</h2>
+      <div class="value" id="temperature">-- °C</div>
+    </div>
+
+    <div class="card">
+      <h2>Signal</h2>
+      <div class="value" id="signal">-- %</div>
+    </div>
+  </div>
+
+  <div class="chart-box">
+    <canvas id="voltageChart"></canvas>
+  </div>
+
+  <div class="chart-box">
+    <canvas id="currentChart"></canvas>
+  </div>
+
+  <div class="chart-box">
+    <canvas id="temperatureChart"></canvas>
+  </div>
+
+<script>
+  const API_BASE = "";
+
+  const voltageChart = new Chart(document.getElementById("voltageChart"), {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Voltage (V)",
+        data: [],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false
+    }
+  });
+
+  const currentChart = new Chart(document.getElementById("currentChart"), {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Current (A)",
+        data: [],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false
+    }
+  });
+
+  const temperatureChart = new Chart(document.getElementById("temperatureChart"), {
+    type: "line",
+    data: {
+      labels: [],
+      datasets: [{
+        label: "Temperature (°C)",
+        data: [],
+        borderWidth: 2
+      }]
+    },
+    options: {
+      responsive: true,
+      animation: false
+    }
+  });
+
+  async function loadLatestData() {
+    try {
+      const response = await fetch(API_BASE + "/api/latest");
+      const result = await response.json();
+
+      if (!result.ok) {
+        console.log("No latest data");
+        return;
+      }
+
+      document.getElementById("voltage").innerText =
+        Number(result.voltage).toFixed(2) + " V";
+
+      document.getElementById("current").innerText =
+        Number(result.current).toFixed(3) + " A";
+
+      document.getElementById("temperature").innerText =
+        Number(result.temperature).toFixed(2) + " °C";
+
+      document.getElementById("soc").innerText =
+        Number(result.soc).toFixed(1) + " %";
+
+      document.getElementById("soh").innerText =
+        Number(result.soh).toFixed(0) + " %";
+
+      document.getElementById("signal").innerText =
+        Number(result.gsm_signal).toFixed(0) + " %";
+
+      document.getElementById("lastUpdated").innerText =
+        new Date(result.created_at).toLocaleString();
+
+    } catch (error) {
+      console.log("Latest data error:", error);
+    }
+  }
+
+  async function loadHistoryData() {
+    try {
+      const response = await fetch(API_BASE + "/api/history");
+      const result = await response.json();
+
+      if (!result.ok) {
+        console.log("No history data");
+        return;
+      }
+
+      const labels = result.data.map(row => {
+        return new Date(row.created_at).toLocaleTimeString();
+      });
+
+      const voltageData = result.data.map(row => Number(row.voltage));
+      const currentData = result.data.map(row => Number(row.current));
+      const temperatureData = result.data.map(row => Number(row.temperature));
+
+      voltageChart.data.labels = labels;
+      voltageChart.data.datasets[0].data = voltageData;
+      voltageChart.update();
+
+      currentChart.data.labels = labels;
+      currentChart.data.datasets[0].data = currentData;
+      currentChart.update();
+
+      temperatureChart.data.labels = labels;
+      temperatureChart.data.datasets[0].data = temperatureData;
+      temperatureChart.update();
+
+    } catch (error) {
+      console.log("History data error:", error);
+    }
+  }
+
+  function refreshDashboard() {
+    loadLatestData();
+    loadHistoryData();
+  }
+
+  refreshDashboard();
+
+  setInterval(refreshDashboard, 5000);
+</script>
+
+</body>
+</html>
