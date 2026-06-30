@@ -767,7 +767,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Voltage Trend</h2>
-          <div class="chart-note">Real readings + offline zero values</div>
+          <div class="chart-note">Graph stops during offline period and resumes when online</div>
         </div>
         <canvas id="voltageChart"></canvas>
       </div>
@@ -775,7 +775,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Current Trend</h2>
-          <div class="chart-note">Real readings + offline zero values</div>
+          <div class="chart-note">Graph stops during offline period and resumes when online</div>
         </div>
         <canvas id="currentChart"></canvas>
       </div>
@@ -783,7 +783,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Temperature Trend</h2>
-          <div class="chart-note">Real readings + offline zero values</div>
+          <div class="chart-note">Graph stops during offline period and resumes when online</div>
         </div>
         <canvas id="temperatureChart"></canvas>
       </div>
@@ -947,7 +947,7 @@
     const alertBox = document.getElementById("alertMessage");
 
     if (!result.online) {
-      alertBox.innerText = "ESP32 is offline. No recent telemetry received. Dashboard cards and graph are showing zero values.";
+      alertBox.innerText = "ESP32 is offline. Dashboard values are reset to zero. Graph remains at the last saved telemetry point.";
       alertBox.style.color = "#fca5a5";
       return;
     }
@@ -1059,8 +1059,8 @@
       const response = await fetch(API_BASE + "/api/history");
       const result = await response.json();
 
-      // Do not clear chart when offline.
-      // Server sends real history + zero points when ESP32 is offline.
+      // Do not clear graph when ESP32 is offline.
+      // Graph should stop at last real stored reading.
       if (!result.ok || !result.data || result.data.length === 0) {
         return;
       }
@@ -1087,7 +1087,7 @@
 
     } catch (error) {
       console.log("History data error:", error);
-      // Keep previous graph visible if API temporarily fails
+      // Keep old graph visible if API temporarily fails
     }
   }
 
