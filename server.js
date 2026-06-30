@@ -40,12 +40,16 @@ async function initDb() {
   console.log("MySQL connected");
 }
 
-// Root API test
+// =====================================================
+// Root route
+// =====================================================
 app.get("/", (req, res) => {
   res.send("API running. Open /dashboard.html for dashboard.");
 });
 
-// Health check
+// =====================================================
+// Health check route
+// =====================================================
 app.get("/health", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT 1 AS ok");
@@ -65,7 +69,10 @@ app.get("/health", async (req, res) => {
   }
 });
 
-// ESP32 sends data to this route
+// =====================================================
+// ESP32 telemetry POST route
+// ESP32 sends voltage, current, temperature, gsm_signal
+// =====================================================
 app.post("/api/telemetry", async (req, res) => {
   try {
     const {
@@ -117,7 +124,9 @@ app.post("/api/telemetry", async (req, res) => {
   }
 });
 
-// Dashboard latest data API
+// =====================================================
+// Latest data API for dashboard cards
+// =====================================================
 app.get("/api/latest", async (req, res) => {
   try {
     const deviceId = "battery_monitor_01";
@@ -147,8 +156,13 @@ app.get("/api/latest", async (req, res) => {
     const temperature = Number(data.temperature);
     const gsmSignal = Number(data.gsm_signal);
 
-    // Change these two values according to your battery pack.
-    // For 10S lithium-ion battery: full = 42V, empty = 30V.
+    // =====================================================
+    // SOC calculation
+    // Change these values according to your battery pack.
+    // Example for 10S Li-ion:
+    // Full voltage  = 42V
+    // Empty voltage = 30V
+    // =====================================================
     const V_FULL = 42.0;
     const V_EMPTY = 30.0;
 
@@ -157,8 +171,11 @@ app.get("/api/latest", async (req, res) => {
     if (soc > 100) soc = 100;
     if (soc < 0) soc = 0;
 
-    // Simple demo SOH value.
-    // Later, calculate SOH using battery capacity fade.
+    // =====================================================
+    // SOH calculation
+    // For first dashboard version, use demo value.
+    // Later this can be calculated using capacity fade method.
+    // =====================================================
     const soh = 100;
 
     res.json({
@@ -183,7 +200,9 @@ app.get("/api/latest", async (req, res) => {
   }
 });
 
-// Dashboard history data API
+// =====================================================
+// History API for dashboard graphs
+// =====================================================
 app.get("/api/history", async (req, res) => {
   try {
     const deviceId = "battery_monitor_01";
@@ -214,6 +233,9 @@ app.get("/api/history", async (req, res) => {
   }
 });
 
+// =====================================================
+// Start server
+// =====================================================
 initDb()
   .then(() => {
     app.listen(PORT, () => {
