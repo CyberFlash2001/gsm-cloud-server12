@@ -11,6 +11,9 @@ app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 8080;
 
+// =====================================================
+// Database configuration
+// =====================================================
 const dbConfig = {
   host: process.env.DB_HOST,
   user: process.env.DB_USER,
@@ -25,6 +28,27 @@ const dbConfig = {
 
 let pool;
 
+// =====================================================
+// ESP32 online/offline setting
+// ESP32 sends every 5 seconds.
+// If no data for more than 15 seconds, consider ESP32 OFF.
+// =====================================================
+const DEVICE_ID = "battery_monitor_01";
+const OFFLINE_TIMEOUT_SECONDS = 15;
+
+// =====================================================
+// Battery SOC settings
+// Change these according to your battery pack.
+// Example: 10S lithium-ion battery
+// Full voltage  = 42V
+// Empty voltage = 30V
+// =====================================================
+const V_FULL = 42.0;
+const V_EMPTY = 30.0;
+
+// =====================================================
+// Initialize MySQL
+// =====================================================
 async function initDb() {
   pool = mysql.createPool({
     ...dbConfig,
@@ -38,6 +62,18 @@ async function initDb() {
   conn.release();
 
   console.log("MySQL connected");
+}
+
+// =====================================================
+// Helper: calculate SOC
+// =====================================================
+function calculateSOC(voltage) {
+  let soc = ((voltage - V_EMPTY) / (V_FULL - V_EMPTY)) * 100;
+
+  if (soc > 100) soc = 100;
+  if (soc < 0) soc = 0;
+
+  return Number(soc.toFixed(1));
 }
 
 // =====================================================
@@ -126,67 +162,92 @@ app.post("/api/telemetry", async (req, res) => {
 
 // =====================================================
 // Latest data API for dashboard cards
+// If ESP32 is OFF, dashboard shows zero values
+// and status becomes OFFLINE
 // =====================================================
 app.get("/api/latest", async (req, res) => {
   try {
-    const deviceId = "battery_monitor_01";
-
     const [rows] = await pool.query(
       `
-      SELECT device_id, voltage, current, temperature, gsm_signal, created_at
+      SELECT 
+        device_id, 
+        voltage, 
+        current, 
+        temperature, 
+        gsm_signal, 
+        created_at,
+        TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP()) AS age_seconds
       FROM telemetry
       WHERE device_id = ?
       ORDER BY created_at DESC
       LIMIT 1
       `,
-      [deviceId]
+      [DEVICE_ID]
     );
 
+    // No data found
     if (rows.length === 0) {
-      return res.status(404).json({
-        ok: false,
-        error: "No telemetry data found"
+      return res.json({
+        ok: true,
+        online: false,
+        status: "OFFLINE",
+        device_id: DEVICE_ID,
+        voltage: 0,
+        current: 0,
+        temperature: 0,
+        gsm_signal: 0,
+        soc: 0,
+        soh: 0,
+        age_seconds: null,
+        created_at: null
       });
     }
 
     const data = rows[0];
+    const ageSeconds = Number(data.age_seconds);
 
+    // ESP32 offline condition
+    if (ageSeconds > OFFLINE_TIMEOUT_SECONDS) {
+      return res.json({
+        ok: true,
+        online: false,
+        status: "OFFLINE",
+        device_id: data.device_id,
+        voltage: 0,
+        current: 0,
+        temperature: 0,
+        gsm_signal: 0,
+        soc: 0,
+        soh: 0,
+        age_seconds: ageSeconds,
+        created_at: data.created_at
+      });
+    }
+
+    // ESP32 online condition
     const voltage = Number(data.voltage);
     const current = Number(data.current);
     const temperature = Number(data.temperature);
     const gsmSignal = Number(data.gsm_signal);
 
-    // =====================================================
-    // SOC calculation
-    // Change these values according to your battery pack.
-    // Example for 10S Li-ion:
-    // Full voltage  = 42V
-    // Empty voltage = 30V
-    // =====================================================
-    const V_FULL = 42.0;
-    const V_EMPTY = 30.0;
+    const soc = calculateSOC(voltage);
 
-    let soc = ((voltage - V_EMPTY) / (V_FULL - V_EMPTY)) * 100;
-
-    if (soc > 100) soc = 100;
-    if (soc < 0) soc = 0;
-
-    // =====================================================
-    // SOH calculation
-    // For first dashboard version, use demo value.
-    // Later this can be calculated using capacity fade method.
-    // =====================================================
+    // Simple demo SOH value
+    // Later you can calculate this using capacity fade method
     const soh = 100;
 
     res.json({
       ok: true,
+      online: true,
+      status: "ONLINE",
       device_id: data.device_id,
       voltage: voltage,
       current: current,
       temperature: temperature,
       gsm_signal: gsmSignal,
-      soc: Number(soc.toFixed(1)),
+      soc: soc,
       soh: soh,
+      age_seconds: ageSeconds,
       created_at: data.created_at
     });
 
@@ -202,11 +263,45 @@ app.get("/api/latest", async (req, res) => {
 
 // =====================================================
 // History API for dashboard graphs
+// If ESP32 is OFF, graph data is cleared
 // =====================================================
 app.get("/api/history", async (req, res) => {
   try {
-    const deviceId = "battery_monitor_01";
+    // First check latest data age
+    const [latestRows] = await pool.query(
+      `
+      SELECT 
+        created_at,
+        TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP()) AS age_seconds
+      FROM telemetry
+      WHERE device_id = ?
+      ORDER BY created_at DESC
+      LIMIT 1
+      `,
+      [DEVICE_ID]
+    );
 
+    if (latestRows.length === 0) {
+      return res.json({
+        ok: true,
+        online: false,
+        status: "OFFLINE",
+        data: []
+      });
+    }
+
+    const ageSeconds = Number(latestRows[0].age_seconds);
+
+    if (ageSeconds > OFFLINE_TIMEOUT_SECONDS) {
+      return res.json({
+        ok: true,
+        online: false,
+        status: "OFFLINE",
+        data: []
+      });
+    }
+
+    // If ESP32 is online, show latest 50 readings
     const [rows] = await pool.query(
       `
       SELECT voltage, current, temperature, created_at
@@ -215,11 +310,13 @@ app.get("/api/history", async (req, res) => {
       ORDER BY created_at DESC
       LIMIT 50
       `,
-      [deviceId]
+      [DEVICE_ID]
     );
 
     res.json({
       ok: true,
+      online: true,
+      status: "ONLINE",
       data: rows.reverse()
     });
 
