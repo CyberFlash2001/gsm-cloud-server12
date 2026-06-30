@@ -33,15 +33,13 @@ let pool;
 // =====================================================
 const DEVICE_ID = "battery_monitor_01";
 
-// ESP32 sends every 5 seconds
-const SENSOR_SEND_INTERVAL_SECONDS = 5;
-
-// If no data for more than 15 seconds, ESP32 is offline
+// ESP32 sends every 5 seconds.
+// If no data for more than 15 seconds, ESP32 is offline.
 const OFFLINE_TIMEOUT_SECONDS = 15;
 
 // =====================================================
 // Battery SOC settings
-// Change according to your battery pack
+// Change these values according to your battery pack.
 // Example for 10S Li-ion:
 // Full voltage  = 42V
 // Empty voltage = 30V
@@ -165,7 +163,8 @@ app.post("/api/telemetry", async (req, res) => {
 
 // =====================================================
 // Latest data API for dashboard cards
-// If ESP32 is OFF, dashboard cards show zero values
+// If ESP32 is OFF, dashboard cards show zero values.
+// Graph does NOT become zero. Graph uses /api/history.
 // =====================================================
 app.get("/api/latest", async (req, res) => {
   try {
@@ -235,7 +234,7 @@ app.get("/api/latest", async (req, res) => {
     const soc = calculateSOC(voltage);
 
     // Simple demo SOH value
-    // Later, calculate SOH using capacity fade/internal resistance
+    // Later, calculate this using battery capacity fade/internal resistance.
     const soh = 100;
 
     res.json({
@@ -265,13 +264,13 @@ app.get("/api/latest", async (req, res) => {
 
 // =====================================================
 // History API for dashboard graphs
-// Important:
-// If ESP32 is OFF, graph is NOT removed.
-// It keeps old history and adds virtual zero points.
+// Graph only shows real saved database readings.
+// If ESP32 is OFF, graph stops at last real value.
+// When ESP32 comes ONLINE again, graph continues.
 // =====================================================
 app.get("/api/history", async (req, res) => {
   try {
-    // Get latest data age
+    // Check latest data age for status only
     const [latestRows] = await pool.query(
       `
       SELECT 
@@ -285,27 +284,19 @@ app.get("/api/history", async (req, res) => {
       [DEVICE_ID]
     );
 
-    // If no data at all, return one zero point
-    if (latestRows.length === 0) {
-      return res.json({
-        ok: true,
-        online: false,
-        status: "OFFLINE",
-        data: [
-          {
-            voltage: 0,
-            current: 0,
-            temperature: 0,
-            created_at: new Date().toISOString()
-          }
-        ]
-      });
+    let online = false;
+    let status = "OFFLINE";
+
+    if (latestRows.length > 0) {
+      const ageSeconds = Number(latestRows[0].age_seconds);
+
+      if (ageSeconds <= OFFLINE_TIMEOUT_SECONDS) {
+        online = true;
+        status = "ONLINE";
+      }
     }
 
-    const latestData = latestRows[0];
-    const ageSeconds = Number(latestData.age_seconds);
-
-    // Get latest real history rows
+    // Get only real stored readings from MySQL
     const [rows] = await pool.query(
       `
       SELECT voltage, current, temperature, created_at
@@ -317,65 +308,11 @@ app.get("/api/history", async (req, res) => {
       [DEVICE_ID]
     );
 
-    let historyData = rows.reverse();
-
-    // If ESP32 is online, return real graph data
-    if (ageSeconds <= OFFLINE_TIMEOUT_SECONDS) {
-      return res.json({
-        ok: true,
-        online: true,
-        status: "ONLINE",
-        data: historyData
-      });
-    }
-
-    // =====================================================
-    // ESP32 offline:
-    // Keep old graph data and add zero points after last reading
-    // =====================================================
-    const lastRealRow = historyData[historyData.length - 1];
-
-    let lastRealTime = new Date(lastRealRow.created_at).getTime();
-    const nowTime = Date.now();
-
-    let zeroPoints = [];
-
-    let nextZeroTime = lastRealTime + SENSOR_SEND_INTERVAL_SECONDS * 1000;
-
-    while (nextZeroTime <= nowTime && zeroPoints.length < 50) {
-      zeroPoints.push({
-        voltage: 0,
-        current: 0,
-        temperature: 0,
-        created_at: new Date(nextZeroTime).toISOString()
-      });
-
-      nextZeroTime += SENSOR_SEND_INTERVAL_SECONDS * 1000;
-    }
-
-    // Safety: if no zero point was generated, add one now
-    if (zeroPoints.length === 0) {
-      zeroPoints.push({
-        voltage: 0,
-        current: 0,
-        temperature: 0,
-        created_at: new Date().toISOString()
-      });
-    }
-
-    // Combine real data + zero offline data
-    historyData = historyData.concat(zeroPoints);
-
-    // Limit total graph points to latest 50
-    if (historyData.length > 50) {
-      historyData = historyData.slice(historyData.length - 50);
-    }
-
     res.json({
       ok: true,
-      online: false,
-      status: "OFFLINE",
-      data: historyData
+      online: online,
+      status: status,
+      data: rows.reverse()
     });
 
   } catch (err) {
