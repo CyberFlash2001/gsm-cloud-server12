@@ -767,7 +767,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Voltage Trend</h2>
-          <div class="chart-note">Last 50 readings</div>
+          <div class="chart-note">Real readings + offline zero values</div>
         </div>
         <canvas id="voltageChart"></canvas>
       </div>
@@ -775,7 +775,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Current Trend</h2>
-          <div class="chart-note">Last 50 readings</div>
+          <div class="chart-note">Real readings + offline zero values</div>
         </div>
         <canvas id="currentChart"></canvas>
       </div>
@@ -783,7 +783,7 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Temperature Trend</h2>
-          <div class="chart-note">Last 50 readings</div>
+          <div class="chart-note">Real readings + offline zero values</div>
         </div>
         <canvas id="temperatureChart"></canvas>
       </div>
@@ -829,7 +829,7 @@
       },
       scales: {
         y: {
-          beginAtZero: false
+          beginAtZero: true
         }
       }
     }
@@ -893,7 +893,7 @@
       },
       scales: {
         y: {
-          beginAtZero: false
+          beginAtZero: true
         }
       }
     }
@@ -947,7 +947,7 @@
     const alertBox = document.getElementById("alertMessage");
 
     if (!result.online) {
-      alertBox.innerText = "ESP32 is offline. No recent telemetry received. Dashboard values are reset to zero.";
+      alertBox.innerText = "ESP32 is offline. No recent telemetry received. Dashboard cards and graph are showing zero values.";
       alertBox.style.color = "#fca5a5";
       return;
     }
@@ -992,20 +992,6 @@
     setGauge("socGauge", 0, "#22c55e");
     setGauge("sohGauge", 0, "#38bdf8");
     setBatteryFill(0);
-  }
-
-  function clearCharts() {
-    voltageChart.data.labels = [];
-    voltageChart.data.datasets[0].data = [];
-    voltageChart.update();
-
-    currentChart.data.labels = [];
-    currentChart.data.datasets[0].data = [];
-    currentChart.update();
-
-    temperatureChart.data.labels = [];
-    temperatureChart.data.datasets[0].data = [];
-    temperatureChart.update();
   }
 
   async function loadLatestData() {
@@ -1073,8 +1059,9 @@
       const response = await fetch(API_BASE + "/api/history");
       const result = await response.json();
 
-      if (!result.ok || !result.online || result.data.length === 0) {
-        clearCharts();
+      // Do not clear chart when offline.
+      // Server sends real history + zero points when ESP32 is offline.
+      if (!result.ok || !result.data || result.data.length === 0) {
         return;
       }
 
@@ -1100,7 +1087,7 @@
 
     } catch (error) {
       console.log("History data error:", error);
-      clearCharts();
+      // Keep previous graph visible if API temporarily fails
     }
   }
 
