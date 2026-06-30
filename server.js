@@ -1,13 +1,8 @@
 const express = require("express");
 const mysql = require("mysql2/promise");
-const path = require("path");
 
 const app = express();
-
-app.use(express.json({ limit: "1mb" }));
-
-// Serve dashboard files from public folder
-app.use(express.static(path.join(__dirname, "public")));
+app.use(express.json());
 
 const PORT = process.env.PORT || 8080;
 
@@ -36,52 +31,26 @@ async function initDb() {
   const conn = await pool.getConnection();
   await conn.ping();
   conn.release();
-
   console.log("MySQL connected");
 }
 
-// =====================================================
-// Root route
-// =====================================================
 app.get("/", (req, res) => {
-  res.send("API running. Open /dashboard.html for dashboard.");
+  res.send("API running");
 });
 
-// =====================================================
-// Health check route
-// =====================================================
 app.get("/health", async (req, res) => {
   try {
     const [rows] = await pool.query("SELECT 1 AS ok");
-
-    res.json({
-      ok: true,
-      db: rows[0].ok === 1
-    });
-
+    res.json({ ok: true, db: rows[0].ok === 1 });
   } catch (err) {
     console.error("Health check error:", err);
-
-    res.status(500).json({
-      ok: false,
-      error: err.message
-    });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// =====================================================
-// ESP32 telemetry POST route
-// ESP32 sends voltage, current, temperature, gsm_signal
-// =====================================================
 app.post("/api/telemetry", async (req, res) => {
   try {
-    const {
-      device_id,
-      voltage,
-      current,
-      temperature,
-      gsm_signal
-    } = req.body;
+    const { device_id, voltage, current, temperature, gsm_signal } = req.body;
 
     if (
       device_id === undefined ||
@@ -109,133 +78,13 @@ app.post("/api/telemetry", async (req, res) => {
       gsm_signal ?? null
     ]);
 
-    res.status(200).json({
-      ok: true,
-      message: "Data stored"
-    });
-
+    res.status(200).json({ ok: true, message: "Data stored" });
   } catch (err) {
     console.error("Insert error:", err);
-
-    res.status(500).json({
-      ok: false,
-      error: err.message
-    });
+    res.status(500).json({ ok: false, error: err.message });
   }
 });
 
-// =====================================================
-// Latest data API for dashboard cards
-// =====================================================
-app.get("/api/latest", async (req, res) => {
-  try {
-    const deviceId = "battery_monitor_01";
-
-    const [rows] = await pool.query(
-      `
-      SELECT device_id, voltage, current, temperature, gsm_signal, created_at
-      FROM telemetry
-      WHERE device_id = ?
-      ORDER BY created_at DESC
-      LIMIT 1
-      `,
-      [deviceId]
-    );
-
-    if (rows.length === 0) {
-      return res.status(404).json({
-        ok: false,
-        error: "No telemetry data found"
-      });
-    }
-
-    const data = rows[0];
-
-    const voltage = Number(data.voltage);
-    const current = Number(data.current);
-    const temperature = Number(data.temperature);
-    const gsmSignal = Number(data.gsm_signal);
-
-    // =====================================================
-    // SOC calculation
-    // Change these values according to your battery pack.
-    // Example for 10S Li-ion:
-    // Full voltage  = 42V
-    // Empty voltage = 30V
-    // =====================================================
-    const V_FULL = 42.0;
-    const V_EMPTY = 30.0;
-
-    let soc = ((voltage - V_EMPTY) / (V_FULL - V_EMPTY)) * 100;
-
-    if (soc > 100) soc = 100;
-    if (soc < 0) soc = 0;
-
-    // =====================================================
-    // SOH calculation
-    // For first dashboard version, use demo value.
-    // Later this can be calculated using capacity fade method.
-    // =====================================================
-    const soh = 100;
-
-    res.json({
-      ok: true,
-      device_id: data.device_id,
-      voltage: voltage,
-      current: current,
-      temperature: temperature,
-      gsm_signal: gsmSignal,
-      soc: Number(soc.toFixed(1)),
-      soh: soh,
-      created_at: data.created_at
-    });
-
-  } catch (err) {
-    console.error("Latest API error:", err);
-
-    res.status(500).json({
-      ok: false,
-      error: err.message
-    });
-  }
-});
-
-// =====================================================
-// History API for dashboard graphs
-// =====================================================
-app.get("/api/history", async (req, res) => {
-  try {
-    const deviceId = "battery_monitor_01";
-
-    const [rows] = await pool.query(
-      `
-      SELECT voltage, current, temperature, created_at
-      FROM telemetry
-      WHERE device_id = ?
-      ORDER BY created_at DESC
-      LIMIT 50
-      `,
-      [deviceId]
-    );
-
-    res.json({
-      ok: true,
-      data: rows.reverse()
-    });
-
-  } catch (err) {
-    console.error("History API error:", err);
-
-    res.status(500).json({
-      ok: false,
-      error: err.message
-    });
-  }
-});
-
-// =====================================================
-// Start server
-// =====================================================
 initDb()
   .then(() => {
     app.listen(PORT, () => {
