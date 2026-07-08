@@ -51,7 +51,7 @@ const V_EMPTY = 34.0;
 // =====================================================
 const BATTERY_SOH = 96.5;
 const FULL_BIKE_RANGE_KM = 20.0;
-const INITIAL_CYCLE_COUNT = 10.0;
+const INITIAL_CYCLE_COUNT = 15.0;
 
 // =====================================================
 // Initialize MySQL
