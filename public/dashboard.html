@@ -432,7 +432,7 @@
 
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 18px;
       margin-bottom: 22px;
     }
@@ -758,6 +758,24 @@
         <div class="metric-sub">WiFi / GSM signal quality</div>
       </div>
 
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-label">Cycle Count</div>
+          <div class="metric-icon">🔄</div>
+        </div>
+        <div class="metric-value" id="cycleCount">10.000</div>
+        <div class="metric-sub">SOC-linked cycle progress</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-label">Estimated Range</div>
+          <div class="metric-icon">🛣️</div>
+        </div>
+        <div class="metric-value" id="estimatedRange">-- km</div>
+        <div class="metric-sub">20 km full-charge range estimate</div>
+      </div>
+
     </div>
 
     <div class="chart-section">
@@ -954,12 +972,14 @@
     const current = Number(result.current);
     const temperature = Number(result.temperature);
     const soc = Number(result.soc);
+    const estimatedRange = Number(result.estimated_range_km);
 
     if (temperature >= 50) {
       alertBox.innerText = "High battery temperature detected. Check cooling and battery safety.";
       alertBox.style.color = "#fdba74";
     } else if (soc <= 20) {
-      alertBox.innerText = "Low battery charge level. Recharge battery soon.";
+      alertBox.innerText =
+        `Low battery charge level. Estimated range: ${estimatedRange.toFixed(2)} km. Recharge battery soon.`;
       alertBox.style.color = "#fde68a";
     } else if (voltage <= 30) {
       alertBox.innerText = "Battery voltage is near empty level. Avoid deep discharge.";
@@ -968,7 +988,8 @@
       alertBox.innerText = "High current draw detected. Check load condition and wiring.";
       alertBox.style.color = "#fdba74";
     } else {
-      alertBox.innerText = "System is operating normally. Telemetry is updating in real time.";
+      alertBox.innerText =
+        `System is operating normally. Estimated remaining range: ${estimatedRange.toFixed(2)} km.`;
       alertBox.style.color = "#bbf7d0";
     }
   }
@@ -982,13 +1003,15 @@
     document.getElementById("current").innerText = "0.000 A";
     document.getElementById("temperature").innerText = "0.00 °C";
     document.getElementById("signal").innerText = "0 %";
+    document.getElementById("cycleCount").innerText = "10.000";
+    document.getElementById("estimatedRange").innerText = "0.00 km";
 
     document.getElementById("socGaugeValue").innerText = "0";
-    document.getElementById("sohGaugeValue").innerText = "0";
+    document.getElementById("sohGaugeValue").innerText = "96.5";
     document.getElementById("batteryPercent").innerText = "0%";
 
     setGauge("socGauge", 0, "#22c55e");
-    setGauge("sohGauge", 0, "#38bdf8");
+    setGauge("sohGauge", 96.5, "#38bdf8");
     setBatteryFill(0);
   }
 
@@ -1011,6 +1034,8 @@
       const signal = Number(result.gsm_signal);
       const soc = Number(result.soc);
       const soh = Number(result.soh);
+      const cycleCount = Number(result.cycle_count);
+      const estimatedRange = Number(result.estimated_range_km);
 
       document.getElementById("heroVoltage").innerText = voltage.toFixed(2);
       document.getElementById("heroCurrent").innerText = current.toFixed(3) + " A";
@@ -1022,7 +1047,9 @@
       document.getElementById("signal").innerText = signal.toFixed(0) + " %";
 
       document.getElementById("socGaugeValue").innerText = soc.toFixed(0);
-      document.getElementById("sohGaugeValue").innerText = soh.toFixed(0);
+      document.getElementById("sohGaugeValue").innerText = soh.toFixed(1);
+      document.getElementById("cycleCount").innerText = cycleCount.toFixed(3);
+      document.getElementById("estimatedRange").innerText = estimatedRange.toFixed(2) + " km";
       document.getElementById("batteryPercent").innerText = soc.toFixed(0) + "%";
 
       setGauge("socGauge", soc, "#22c55e");
