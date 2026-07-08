@@ -46,6 +46,14 @@ const V_FULL = 42.0;
 const V_EMPTY = 34.0;
 
 // =====================================================
+// Dashboard-only battery values
+// ESP32 code remains unchanged.
+// =====================================================
+const BATTERY_SOH = 96.5;
+const FULL_BIKE_RANGE_KM = 20.0;
+const INITIAL_CYCLE_COUNT = 10.0;
+
+// =====================================================
 // Initialize MySQL
 // =====================================================
 async function initDb() {
@@ -73,6 +81,43 @@ function calculateSOC(voltage) {
   if (soc < 0) soc = 0;
 
   return Number(soc.toFixed(1));
+}
+
+// =====================================================
+// Estimated range from SOC
+// 100% SOC = 20 km
+// =====================================================
+function calculateEstimatedRange(soc) {
+  let safeSOC = Number(soc);
+
+  if (!Number.isFinite(safeSOC)) safeSOC = 0;
+  if (safeSOC > 100) safeSOC = 100;
+  if (safeSOC < 0) safeSOC = 0;
+
+  const estimatedRange =
+    FULL_BIKE_RANGE_KM * (safeSOC / 100.0);
+
+  return Number(estimatedRange.toFixed(2));
+}
+
+// =====================================================
+// SOC-linked cycle progress for dashboard display
+// 100% SOC = 10.000
+// 50% SOC  = 10.500
+// 0% SOC   = 11.000
+// This value moves up/down with SOC.
+// =====================================================
+function calculateCycleCount(soc) {
+  let safeSOC = Number(soc);
+
+  if (!Number.isFinite(safeSOC)) safeSOC = 100;
+  if (safeSOC > 100) safeSOC = 100;
+  if (safeSOC < 0) safeSOC = 0;
+
+  const cycleProgress = (100.0 - safeSOC) / 100.0;
+  const cycleCount = INITIAL_CYCLE_COUNT + cycleProgress;
+
+  return Number(cycleCount.toFixed(3));
 }
 
 // =====================================================
@@ -271,7 +316,9 @@ app.get("/api/latest", async (req, res) => {
         used_Wh: 0,
         internal_resistance: 0,
         gsm_signal: 0,
-        soh: 0,
+        soh: BATTERY_SOH,
+        cycle_count: INITIAL_CYCLE_COUNT,
+        estimated_range_km: 0,
         age_seconds: null,
         created_at: null
       });
@@ -295,7 +342,9 @@ app.get("/api/latest", async (req, res) => {
         used_Wh: 0,
         internal_resistance: 0,
         gsm_signal: 0,
-        soh: 0,
+        soh: BATTERY_SOH,
+        cycle_count: INITIAL_CYCLE_COUNT,
+        estimated_range_km: 0,
         age_seconds: ageSeconds,
         created_at: data.created_at
       });
@@ -327,9 +376,14 @@ app.get("/api/latest", async (req, res) => {
         ? Number(data.internal_resistance)
         : 0;
 
-    // Simple demo SOH value
-    // Later you can calculate SOH using capacity fade and internal resistance increase.
-    const soh = 100;
+    // Dashboard battery health is fixed at 96.5%.
+    const soh = BATTERY_SOH;
+
+    // 100% SOC = 20 km, then range decreases with SOC.
+    const estimatedRangeKm = calculateEstimatedRange(soc);
+
+    // Initial cycle count is 10.000 and moves with SOC progress.
+    const cycleCount = calculateCycleCount(soc);
 
     res.json({
       ok: true,
@@ -345,6 +399,8 @@ app.get("/api/latest", async (req, res) => {
       internal_resistance: internalResistance,
       gsm_signal: gsmSignal,
       soh: soh,
+      cycle_count: cycleCount,
+      estimated_range_km: estimatedRangeKm,
       age_seconds: ageSeconds,
       created_at: data.created_at
     });
