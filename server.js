@@ -34,16 +34,18 @@ let pool;
 const DEVICE_ID = "battery_monitor_01";
 
 // ESP32 sends every 5 seconds.
-// If no data for more than 15 seconds, ESP32 is offline.
+// If no data for more than 20 seconds, ESP32 is offline.
 const OFFLINE_TIMEOUT_SECONDS = 20;
 
 // =====================================================
-// Battery SOC fallback settings
-// If ESP32 does not send SOC, server calculates simple voltage SOC.
-// But your ESP32 SOC is better, so server will use ESP32 SOC first.
+// Battery fallback settings
 // =====================================================
 const V_FULL = 42.0;
 const V_EMPTY = 34.0;
+
+const INITIAL_CYCLE_COUNT = 10.0;
+const INITIAL_SOH_PERCENT = 98.926;
+const FULL_RANGE_KM = 20.0;
 
 // =====================================================
 // Initialize MySQL
@@ -64,15 +66,39 @@ async function initDb() {
 }
 
 // =====================================================
-// Helper: calculate fallback SOC from voltage
+// Helpers
 // =====================================================
+function toFiniteNumber(value, fallback = null) {
+  if (value === undefined || value === null || value === "") {
+    return fallback;
+  }
+
+  const numberValue = Number(value);
+
+  return Number.isFinite(numberValue)
+    ? numberValue
+    : fallback;
+}
+
 function calculateSOC(voltage) {
   let soc = ((voltage - V_EMPTY) / (V_FULL - V_EMPTY)) * 100;
 
   if (soc > 100) soc = 100;
   if (soc < 0) soc = 0;
 
-  return Number(soc.toFixed(1));
+  return Number(soc.toFixed(2));
+}
+
+function calculateRange(soc, soh) {
+  const safeSoc = Math.max(0, Math.min(100, Number(soc)));
+  const safeSoh = Math.max(0, Number(soh));
+
+  const range =
+    FULL_RANGE_KM *
+    (safeSoc / 100.0) *
+    (safeSoh / INITIAL_SOH_PERCENT);
+
+  return Number(Math.max(0, range).toFixed(2));
 }
 
 // =====================================================
@@ -93,7 +119,6 @@ app.get("/health", async (req, res) => {
       ok: true,
       db: rows[0].ok === 1
     });
-
   } catch (err) {
     console.error("Health check error:", err);
 
@@ -107,15 +132,20 @@ app.get("/health", async (req, res) => {
 // =====================================================
 // ESP32 telemetry POST route
 //
-// ESP32 sends:
-// voltage,
-// current,
-// temperature,
-// soc,
-// used_Ah,
-// used_Wh,
-// internal_resistance,
+// Existing values:
+// voltage
+// current
+// temperature
+// soc
+// used_Ah
+// used_Wh
+// internal_resistance
 // gsm_signal
+//
+// New values:
+// cycle_count
+// soh
+// estimated_range_km
 // =====================================================
 app.post("/api/telemetry", async (req, res) => {
   try {
@@ -128,6 +158,9 @@ app.post("/api/telemetry", async (req, res) => {
       used_Ah,
       used_Wh,
       internal_resistance,
+      cycle_count,
+      soh,
+      estimated_range_km,
       gsm_signal
     } = req.body;
 
@@ -143,35 +176,54 @@ app.post("/api/telemetry", async (req, res) => {
       });
     }
 
-    const voltageValue = Number(voltage);
-    const currentValue = Number(current);
-    const temperatureValue = Number(temperature);
+    const voltageValue = toFiniteNumber(voltage);
+    const currentValue = toFiniteNumber(current);
+    const temperatureValue = toFiniteNumber(temperature);
 
-    // Use ESP32 SOC if available. Otherwise use simple voltage SOC.
-    const socValue =
-      soc !== undefined && soc !== null
-        ? Number(soc)
-        : calculateSOC(voltageValue);
+    if (
+      voltageValue === null ||
+      currentValue === null ||
+      temperatureValue === null
+    ) {
+      return res.status(400).json({
+        ok: false,
+        error: "voltage, current and temperature must be valid numbers"
+      });
+    }
 
-    const usedAhValue =
-      used_Ah !== undefined && used_Ah !== null
-        ? Number(used_Ah)
-        : null;
+    // Use ESP32 SOC first. Voltage SOC is fallback only.
+    const socValue = toFiniteNumber(
+      soc,
+      calculateSOC(voltageValue)
+    );
 
-    const usedWhValue =
-      used_Wh !== undefined && used_Wh !== null
-        ? Number(used_Wh)
-        : null;
+    const usedAhValue = toFiniteNumber(used_Ah, null);
+    const usedWhValue = toFiniteNumber(used_Wh, null);
 
-    const internalResistanceValue =
-      internal_resistance !== undefined && internal_resistance !== null
-        ? Number(internal_resistance)
-        : null;
+    const internalResistanceValue = toFiniteNumber(
+      internal_resistance,
+      null
+    );
 
-    const gsmSignalValue =
-      gsm_signal !== undefined && gsm_signal !== null
-        ? Number(gsm_signal)
-        : null;
+    const cycleCountValue = toFiniteNumber(
+      cycle_count,
+      INITIAL_CYCLE_COUNT
+    );
+
+    const sohValue = toFiniteNumber(
+      soh,
+      INITIAL_SOH_PERCENT
+    );
+
+    const estimatedRangeValue = toFiniteNumber(
+      estimated_range_km,
+      calculateRange(socValue, sohValue)
+    );
+
+    const gsmSignalValue = toFiniteNumber(
+      gsm_signal,
+      null
+    );
 
     const sql = `
       INSERT INTO telemetry
@@ -184,10 +236,13 @@ app.post("/api/telemetry", async (req, res) => {
         used_Ah,
         used_Wh,
         internal_resistance,
+        cycle_count,
+        soh,
+        estimated_range_km,
         gsm_signal,
         created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, UTC_TIMESTAMP())
     `;
 
     await pool.execute(sql, [
@@ -199,6 +254,9 @@ app.post("/api/telemetry", async (req, res) => {
       usedAhValue,
       usedWhValue,
       internalResistanceValue,
+      cycleCountValue,
+      sohValue,
+      estimatedRangeValue,
       gsmSignalValue
     ]);
 
@@ -214,10 +272,12 @@ app.post("/api/telemetry", async (req, res) => {
         used_Ah: usedAhValue,
         used_Wh: usedWhValue,
         internal_resistance: internalResistanceValue,
+        cycle_count: cycleCountValue,
+        soh: sohValue,
+        estimated_range_km: estimatedRangeValue,
         gsm_signal: gsmSignalValue
       }
     });
-
   } catch (err) {
     console.error("Insert error:", err);
 
@@ -230,24 +290,30 @@ app.post("/api/telemetry", async (req, res) => {
 
 // =====================================================
 // Latest data API for dashboard cards
-// If ESP32 is OFF, dashboard cards show zero values.
 // =====================================================
 app.get("/api/latest", async (req, res) => {
   try {
     const [rows] = await pool.query(
       `
-      SELECT 
-        device_id, 
-        voltage, 
-        \`current\` AS current, 
+      SELECT
+        device_id,
+        voltage,
+        \`current\` AS current,
         temperature,
         soc,
         used_Ah,
         used_Wh,
         internal_resistance,
-        gsm_signal, 
+        cycle_count,
+        soh,
+        estimated_range_km,
+        gsm_signal,
         created_at,
-        TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP()) AS age_seconds
+        TIMESTAMPDIFF(
+          SECOND,
+          created_at,
+          UTC_TIMESTAMP()
+        ) AS age_seconds
       FROM telemetry
       WHERE device_id = ?
       ORDER BY created_at DESC
@@ -270,8 +336,10 @@ app.get("/api/latest", async (req, res) => {
         used_Ah: 0,
         used_Wh: 0,
         internal_resistance: 0,
+        cycle_count: INITIAL_CYCLE_COUNT,
+        soh: INITIAL_SOH_PERCENT,
+        estimated_range_km: 0,
         gsm_signal: 0,
-        soh: 0,
         age_seconds: null,
         created_at: null
       });
@@ -294,61 +362,78 @@ app.get("/api/latest", async (req, res) => {
         used_Ah: 0,
         used_Wh: 0,
         internal_resistance: 0,
+        cycle_count: toFiniteNumber(
+          data.cycle_count,
+          INITIAL_CYCLE_COUNT
+        ),
+        soh: toFiniteNumber(
+          data.soh,
+          INITIAL_SOH_PERCENT
+        ),
+        estimated_range_km: 0,
         gsm_signal: 0,
-        soh: 0,
         age_seconds: ageSeconds,
         created_at: data.created_at
       });
     }
 
     // ESP32 online condition
-    const voltage = Number(data.voltage);
-    const current = Number(data.current);
-    const temperature = Number(data.temperature);
-    const gsmSignal = Number(data.gsm_signal);
+    const voltageValue = toFiniteNumber(data.voltage, 0);
+    const currentValue = toFiniteNumber(data.current, 0);
+    const temperatureValue = toFiniteNumber(data.temperature, 0);
 
-    const soc =
-      data.soc !== null && data.soc !== undefined
-        ? Number(data.soc)
-        : calculateSOC(voltage);
+    const socValue = toFiniteNumber(
+      data.soc,
+      calculateSOC(voltageValue)
+    );
 
-    const usedAh =
-      data.used_Ah !== null && data.used_Ah !== undefined
-        ? Number(data.used_Ah)
-        : 0;
+    const usedAhValue = toFiniteNumber(data.used_Ah, 0);
+    const usedWhValue = toFiniteNumber(data.used_Wh, 0);
 
-    const usedWh =
-      data.used_Wh !== null && data.used_Wh !== undefined
-        ? Number(data.used_Wh)
-        : 0;
+    const internalResistanceValue = toFiniteNumber(
+      data.internal_resistance,
+      0
+    );
 
-    const internalResistance =
-      data.internal_resistance !== null && data.internal_resistance !== undefined
-        ? Number(data.internal_resistance)
-        : 0;
+    const cycleCountValue = toFiniteNumber(
+      data.cycle_count,
+      INITIAL_CYCLE_COUNT
+    );
 
-    // Simple demo SOH value
-    // Later you can calculate SOH using capacity fade and internal resistance increase.
-    const soh = 100;
+    const sohValue = toFiniteNumber(
+      data.soh,
+      INITIAL_SOH_PERCENT
+    );
+
+    const estimatedRangeValue = toFiniteNumber(
+      data.estimated_range_km,
+      calculateRange(socValue, sohValue)
+    );
+
+    const gsmSignalValue = toFiniteNumber(
+      data.gsm_signal,
+      0
+    );
 
     res.json({
       ok: true,
       online: true,
       status: "ONLINE",
       device_id: data.device_id,
-      voltage: voltage,
-      current: current,
-      temperature: temperature,
-      soc: soc,
-      used_Ah: usedAh,
-      used_Wh: usedWh,
-      internal_resistance: internalResistance,
-      gsm_signal: gsmSignal,
-      soh: soh,
+      voltage: voltageValue,
+      current: currentValue,
+      temperature: temperatureValue,
+      soc: socValue,
+      used_Ah: usedAhValue,
+      used_Wh: usedWhValue,
+      internal_resistance: internalResistanceValue,
+      cycle_count: cycleCountValue,
+      soh: sohValue,
+      estimated_range_km: estimatedRangeValue,
+      gsm_signal: gsmSignalValue,
       age_seconds: ageSeconds,
       created_at: data.created_at
     });
-
   } catch (err) {
     console.error("Latest API error:", err);
 
@@ -361,16 +446,18 @@ app.get("/api/latest", async (req, res) => {
 
 // =====================================================
 // History API for dashboard graphs
-// Graph only shows real saved database readings.
 // =====================================================
 app.get("/api/history", async (req, res) => {
   try {
-    // Check latest data age for status only
     const [latestRows] = await pool.query(
       `
-      SELECT 
+      SELECT
         created_at,
-        TIMESTAMPDIFF(SECOND, created_at, UTC_TIMESTAMP()) AS age_seconds
+        TIMESTAMPDIFF(
+          SECOND,
+          created_at,
+          UTC_TIMESTAMP()
+        ) AS age_seconds
       FROM telemetry
       WHERE device_id = ?
       ORDER BY created_at DESC
@@ -391,10 +478,9 @@ app.get("/api/history", async (req, res) => {
       }
     }
 
-    // Get real stored readings from MySQL
     const [rows] = await pool.query(
       `
-      SELECT 
+      SELECT
         voltage,
         \`current\` AS current,
         temperature,
@@ -402,6 +488,9 @@ app.get("/api/history", async (req, res) => {
         used_Ah,
         used_Wh,
         internal_resistance,
+        cycle_count,
+        soh,
+        estimated_range_km,
         gsm_signal,
         created_at
       FROM telemetry
@@ -414,11 +503,10 @@ app.get("/api/history", async (req, res) => {
 
     res.json({
       ok: true,
-      online: online,
-      status: status,
+      online,
+      status,
       data: rows.reverse()
     });
-
   } catch (err) {
     console.error("History API error:", err);
 
