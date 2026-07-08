@@ -432,7 +432,7 @@
 
     .cards-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 18px;
       margin-bottom: 22px;
     }
@@ -531,11 +531,6 @@
       font-weight: 900;
     }
 
-    .chart-note {
-      color: var(--text-muted);
-      font-size: 13px;
-    }
-
     .footer {
       margin-top: 24px;
       text-align: center;
@@ -615,7 +610,6 @@
 </head>
 
 <body>
-
   <div class="dashboard">
 
     <div class="topbar">
@@ -654,7 +648,9 @@
               <span id="heroVoltage">--</span><span> V</span>
             </h2>
 
-            <p class="hero-description"
+            <p class="hero-description">
+              Real-time battery voltage, current, temperature, state of charge,
+              battery health, equivalent cycle count and estimated riding range.
             </p>
 
             <div class="quick-row">
@@ -714,7 +710,9 @@
 
         <div class="alert-box">
           <div class="alert-title">System Alert</div>
-          <div class="alert-message" id="alertMessage">Waiting for ESP32 telemetry...</div>
+          <div class="alert-message" id="alertMessage">
+            Waiting for ESP32 telemetry...
+          </div>
         </div>
       </div>
 
@@ -737,7 +735,7 @@
           <div class="metric-icon">🔋</div>
         </div>
         <div class="metric-value" id="current">-- A</div>
-        <div class="metric-sub">Battery current with system offset</div>
+        <div class="metric-sub">Measured battery discharge current</div>
       </div>
 
       <div class="metric-card">
@@ -758,6 +756,24 @@
         <div class="metric-sub">WiFi / GSM signal quality</div>
       </div>
 
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-label">Cycle Count</div>
+          <div class="metric-icon">🔄</div>
+        </div>
+        <div class="metric-value" id="cycleCount">10.000</div>
+        <div class="metric-sub">Equivalent battery cycle count</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-label">Estimated Range</div>
+          <div class="metric-icon">🛣️</div>
+        </div>
+        <div class="metric-value" id="estimatedRange">-- km</div>
+        <div class="metric-sub">Estimated remaining riding range</div>
+      </div>
+
     </div>
 
     <div class="chart-section">
@@ -765,7 +781,6 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Voltage Trend</h2>
-         
         </div>
         <canvas id="voltageChart"></canvas>
       </div>
@@ -773,7 +788,6 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Current Trend</h2>
-          
         </div>
         <canvas id="currentChart"></canvas>
       </div>
@@ -781,7 +795,6 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Temperature Trend</h2>
-         
         </div>
         <canvas id="temperatureChart"></canvas>
       </div>
@@ -897,9 +910,17 @@
     }
   });
 
+  function safeNumber(value, fallback = 0) {
+    const parsed = Number(value);
+
+    return Number.isFinite(parsed)
+      ? parsed
+      : fallback;
+  }
+
   function setGauge(elementId, value, color) {
     const gauge = document.getElementById(elementId);
-    const safeValue = Math.max(0, Math.min(100, Number(value)));
+    const safeValue = Math.max(0, Math.min(100, safeNumber(value)));
     const degree = safeValue * 3.6;
 
     gauge.style.background =
@@ -924,7 +945,7 @@
   }
 
   function setBatteryFill(soc) {
-    const safeSoc = Math.max(0, Math.min(100, Number(soc)));
+    const safeSoc = Math.max(0, Math.min(100, safeNumber(soc)));
     const fill = document.getElementById("batteryFill");
 
     fill.style.width = safeSoc + "%";
@@ -945,30 +966,42 @@
     const alertBox = document.getElementById("alertMessage");
 
     if (!result.online) {
-      alertBox.innerText = "ESP32 is offline. Dashboard values are reset to zero. Graph remains at the last saved telemetry point.";
+      alertBox.innerText =
+        "ESP32 is offline. Live values are reset while the graph keeps the last stored telemetry.";
       alertBox.style.color = "#fca5a5";
       return;
     }
 
-    const voltage = Number(result.voltage);
-    const current = Number(result.current);
-    const temperature = Number(result.temperature);
-    const soc = Number(result.soc);
+    const voltage = safeNumber(result.voltage);
+    const current = safeNumber(result.current);
+    const temperature = safeNumber(result.temperature);
+    const soc = safeNumber(result.soc);
+    const soh = safeNumber(result.soh, 98.926);
+    const range = safeNumber(result.estimated_range_km);
 
     if (temperature >= 50) {
-      alertBox.innerText = "High battery temperature detected. Check cooling and battery safety.";
+      alertBox.innerText =
+        "High battery temperature detected. Check cooling and battery safety.";
       alertBox.style.color = "#fdba74";
     } else if (soc <= 20) {
-      alertBox.innerText = "Low battery charge level. Recharge battery soon.";
+      alertBox.innerText =
+        `Low battery charge. Estimated range is ${range.toFixed(2)} km. Recharge soon.`;
       alertBox.style.color = "#fde68a";
     } else if (voltage <= 30) {
-      alertBox.innerText = "Battery voltage is near empty level. Avoid deep discharge.";
+      alertBox.innerText =
+        "Battery voltage is near empty level. Avoid deep discharge.";
       alertBox.style.color = "#fde68a";
     } else if (current >= 20) {
-      alertBox.innerText = "High current draw detected. Check load condition and wiring.";
+      alertBox.innerText =
+        "High current draw detected. Check load condition and wiring.";
       alertBox.style.color = "#fdba74";
+    } else if (soh < 80) {
+      alertBox.innerText =
+        "Battery health is below 80%. Battery inspection is recommended.";
+      alertBox.style.color = "#fde68a";
     } else {
-      alertBox.innerText = "System is operating normally. Telemetry is updating in real time.";
+      alertBox.innerText =
+        `System is operating normally. Estimated remaining range: ${range.toFixed(2)} km.`;
       alertBox.style.color = "#bbf7d0";
     }
   }
@@ -983,18 +1016,24 @@
     document.getElementById("temperature").innerText = "0.00 °C";
     document.getElementById("signal").innerText = "0 %";
 
+    document.getElementById("cycleCount").innerText = "10.000";
+    document.getElementById("estimatedRange").innerText = "0.00 km";
+
     document.getElementById("socGaugeValue").innerText = "0";
-    document.getElementById("sohGaugeValue").innerText = "0";
+    document.getElementById("sohGaugeValue").innerText = "98.926";
     document.getElementById("batteryPercent").innerText = "0%";
 
     setGauge("socGauge", 0, "#22c55e");
-    setGauge("sohGauge", 0, "#38bdf8");
+    setGauge("sohGauge", 98.926, "#38bdf8");
     setBatteryFill(0);
   }
 
   async function loadLatestData() {
     try {
-      const response = await fetch(API_BASE + "/api/latest");
+      const response = await fetch(API_BASE + "/api/latest", {
+        cache: "no-store"
+      });
+
       const result = await response.json();
 
       if (!result.ok) {
@@ -1005,35 +1044,64 @@
 
       setStatus(result.status);
 
-      const voltage = Number(result.voltage);
-      const current = Number(result.current);
-      const temperature = Number(result.temperature);
-      const signal = Number(result.gsm_signal);
-      const soc = Number(result.soc);
-      const soh = Number(result.soh);
+      const voltage = safeNumber(result.voltage);
+      const current = safeNumber(result.current);
+      const temperature = safeNumber(result.temperature);
+      const signal = safeNumber(result.gsm_signal);
+      const soc = safeNumber(result.soc);
+      const soh = safeNumber(result.soh, 98.926);
+      const cycleCount = safeNumber(result.cycle_count, 10.0);
+      const estimatedRange = safeNumber(result.estimated_range_km);
 
-      document.getElementById("heroVoltage").innerText = voltage.toFixed(2);
-      document.getElementById("heroCurrent").innerText = current.toFixed(3) + " A";
-      document.getElementById("heroTemperature").innerText = temperature.toFixed(2) + " °C";
+      document.getElementById("heroVoltage").innerText =
+        voltage.toFixed(2);
 
-      document.getElementById("voltage").innerText = voltage.toFixed(2) + " V";
-      document.getElementById("current").innerText = current.toFixed(3) + " A";
-      document.getElementById("temperature").innerText = temperature.toFixed(2) + " °C";
-      document.getElementById("signal").innerText = signal.toFixed(0) + " %";
+      document.getElementById("heroCurrent").innerText =
+        current.toFixed(3) + " A";
 
-      document.getElementById("socGaugeValue").innerText = soc.toFixed(0);
-      document.getElementById("sohGaugeValue").innerText = soh.toFixed(0);
-      document.getElementById("batteryPercent").innerText = soc.toFixed(0) + "%";
+      document.getElementById("heroTemperature").innerText =
+        temperature.toFixed(2) + " °C";
+
+      document.getElementById("voltage").innerText =
+        voltage.toFixed(2) + " V";
+
+      document.getElementById("current").innerText =
+        current.toFixed(3) + " A";
+
+      document.getElementById("temperature").innerText =
+        temperature.toFixed(2) + " °C";
+
+      document.getElementById("signal").innerText =
+        signal.toFixed(0) + " %";
+
+      document.getElementById("cycleCount").innerText =
+        cycleCount.toFixed(3);
+
+      document.getElementById("estimatedRange").innerText =
+        estimatedRange.toFixed(2) + " km";
+
+      document.getElementById("socGaugeValue").innerText =
+        soc.toFixed(0);
+
+      // Keep the requested SOH precision: 98.926
+      document.getElementById("sohGaugeValue").innerText =
+        soh.toFixed(3);
+
+      document.getElementById("batteryPercent").innerText =
+        soc.toFixed(0) + "%";
 
       setGauge("socGauge", soc, "#22c55e");
       setGauge("sohGauge", soh, "#38bdf8");
       setBatteryFill(soc);
 
-      if (result.age_seconds === null || result.age_seconds === undefined) {
+      if (
+        result.age_seconds === null ||
+        result.age_seconds === undefined
+      ) {
         document.getElementById("age").innerText = "-- s";
       } else {
         document.getElementById("age").innerText =
-          Number(result.age_seconds).toFixed(0) + " s";
+          safeNumber(result.age_seconds).toFixed(0) + " s";
       }
 
       if (result.created_at === null) {
@@ -1044,7 +1112,6 @@
       }
 
       updateAlert(result);
-
     } catch (error) {
       console.log("Latest data error:", error);
       setStatus("OFFLINE");
@@ -1054,12 +1121,17 @@
 
   async function loadHistoryData() {
     try {
-      const response = await fetch(API_BASE + "/api/history");
+      const response = await fetch(API_BASE + "/api/history", {
+        cache: "no-store"
+      });
+
       const result = await response.json();
 
-      // Do not clear graph when ESP32 is offline.
-      // Graph should stop at last real stored reading.
-      if (!result.ok || !result.data || result.data.length === 0) {
+      if (
+        !result.ok ||
+        !result.data ||
+        result.data.length === 0
+      ) {
         return;
       }
 
@@ -1067,9 +1139,17 @@
         return new Date(row.created_at).toLocaleTimeString();
       });
 
-      const voltageData = result.data.map(row => Number(row.voltage));
-      const currentData = result.data.map(row => Number(row.current));
-      const temperatureData = result.data.map(row => Number(row.temperature));
+      const voltageData = result.data.map(row =>
+        safeNumber(row.voltage)
+      );
+
+      const currentData = result.data.map(row =>
+        safeNumber(row.current)
+      );
+
+      const temperatureData = result.data.map(row =>
+        safeNumber(row.temperature)
+      );
 
       voltageChart.data.labels = labels;
       voltageChart.data.datasets[0].data = voltageData;
@@ -1082,10 +1162,8 @@
       temperatureChart.data.labels = labels;
       temperatureChart.data.datasets[0].data = temperatureData;
       temperatureChart.update();
-
     } catch (error) {
       console.log("History data error:", error);
-      // Keep old graph visible if API temporarily fails
     }
   }
 
