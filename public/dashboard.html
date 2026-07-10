@@ -3,9 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-
   <title>Smart Battery Health Monitoring Dashboard</title>
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -24,9 +22,7 @@
       --yellow: #facc15;
     }
 
-    * {
-      box-sizing: border-box;
-    }
+    * { box-sizing: border-box; }
 
     body {
       margin: 0;
@@ -80,8 +76,7 @@
       width: 58px;
       height: 58px;
       border-radius: 20px;
-      background:
-        linear-gradient(135deg, rgba(56, 189, 248, 0.95), rgba(34, 197, 94, 0.95));
+      background: linear-gradient(135deg, rgba(56, 189, 248, 0.95), rgba(34, 197, 94, 0.95));
       display: flex;
       align-items: center;
       justify-content: center;
@@ -302,8 +297,7 @@
       height: 100%;
       width: 0%;
       border-radius: 18px;
-      background:
-        linear-gradient(90deg, rgba(34,197,94,0.95), rgba(56,189,248,0.95));
+      background: linear-gradient(90deg, rgba(34,197,94,0.95), rgba(56,189,248,0.95));
       box-shadow: 0 0 28px rgba(34, 197, 94, 0.34);
       transition: width 0.45s ease;
     }
@@ -331,9 +325,7 @@
       font-weight: 700;
     }
 
-    .right-panel {
-      padding: 24px;
-    }
+    .right-panel { padding: 24px; }
 
     .section-title {
       position: relative;
@@ -543,79 +535,34 @@
       font-size: 13px;
     }
 
-    .online-text {
-      color: var(--green);
-    }
-
-    .offline-text {
-      color: var(--red);
-    }
+    .online-text { color: var(--green); }
+    .offline-text { color: var(--red); }
 
     @media (max-width: 1200px) {
-      .layout {
-        grid-template-columns: 1fr;
-      }
-
-      .cards-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
+      .layout { grid-template-columns: 1fr; }
+      .cards-grid { grid-template-columns: repeat(2, 1fr); }
     }
 
     @media (max-width: 850px) {
-      .topbar {
-        flex-direction: column;
-        align-items: flex-start;
-      }
-
-      .top-actions {
-        width: 100%;
-        justify-content: flex-start;
-      }
-
-      .hero-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .quick-row {
-        grid-template-columns: 1fr;
-      }
-
-      .main-voltage {
-        font-size: 60px;
-      }
-
-      .battery-shell {
-        width: 280px;
-        height: 130px;
-      }
-
-      .gauge-grid {
-        grid-template-columns: 1fr;
-      }
+      .topbar { flex-direction: column; align-items: flex-start; }
+      .top-actions { width: 100%; justify-content: flex-start; }
+      .hero-grid { grid-template-columns: 1fr; }
+      .quick-row { grid-template-columns: 1fr; }
+      .main-voltage { font-size: 60px; }
+      .battery-shell { width: 280px; height: 130px; }
+      .gauge-grid { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 620px) {
-      .dashboard {
-        padding: 18px;
-      }
-
-      .brand h1 {
-        font-size: 24px;
-      }
-
-      .cards-grid {
-        grid-template-columns: 1fr;
-      }
-
-      .chip {
-        width: 100%;
-      }
+      .dashboard { padding: 18px; }
+      .brand h1 { font-size: 24px; }
+      .cards-grid { grid-template-columns: 1fr; }
+      .chip { width: 100%; }
     }
   </style>
 </head>
 
 <body>
-
   <div class="dashboard">
 
     <div class="topbar">
@@ -623,7 +570,7 @@
         <div class="logo">⚡</div>
         <div>
           <h1>Smart Battery Monitoring System</h1>
-          <p>Real Time Dashboard</p>
+          <p>Real-Time Telemetry and Cycle-Triggered SOH Dashboard</p>
         </div>
       </div>
 
@@ -637,7 +584,7 @@
         </div>
 
         <div class="chip">
-          <div class="chip-label">Last Update</div>
+          <div class="chip-label">Last Telemetry Update</div>
           <div class="chip-value" id="lastUpdated">--</div>
         </div>
       </div>
@@ -654,7 +601,10 @@
               <span id="heroVoltage">--</span><span> V</span>
             </h2>
 
-            <p class="hero-description"
+            <p class="hero-description">
+              Real-time e-bike battery telemetry is logged to Azure MySQL.
+              SOH is updated only when a new integer battery cycle triggers the
+              deployed Lasso prediction service.
             </p>
 
             <div class="quick-row">
@@ -706,7 +656,7 @@
             <div class="gauge" id="sohGauge">
               <div class="gauge-content">
                 <div class="gauge-number" id="sohGaugeValue">--</div>
-                <div class="gauge-text">SOH %</div>
+                <div class="gauge-text">ML SOH %</div>
               </div>
             </div>
           </div>
@@ -714,7 +664,9 @@
 
         <div class="alert-box">
           <div class="alert-title">System Alert</div>
-          <div class="alert-message" id="alertMessage">Waiting for ESP32 telemetry...</div>
+          <div class="alert-message" id="alertMessage">
+            Waiting for ESP32 telemetry...
+          </div>
         </div>
       </div>
 
@@ -763,8 +715,8 @@
           <div class="metric-label">Cycle Count</div>
           <div class="metric-icon">🔄</div>
         </div>
-        <div class="metric-value" id="cycleCount">10.000</div>
-        <div class="metric-sub">SOC-linked cycle progress</div>
+        <div class="metric-value" id="cycleCount">--</div>
+        <div class="metric-sub">Integer cycle used for SOH inference</div>
       </div>
 
       <div class="metric-card">
@@ -776,6 +728,24 @@
         <div class="metric-sub">20 km full-charge range estimate</div>
       </div>
 
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-label">SOL Health Margin</div>
+          <div class="metric-icon">🧠</div>
+        </div>
+        <div class="metric-value" id="solHealthMargin">-- %</div>
+        <div class="metric-sub">SOH-derived battery health margin</div>
+      </div>
+
+      <div class="metric-card">
+        <div class="metric-top">
+          <div class="metric-label">Last SOH Prediction</div>
+          <div class="metric-icon">⏱️</div>
+        </div>
+        <div class="metric-value" id="lastSohPrediction" style="font-size:20px;">--</div>
+        <div class="metric-sub">Updated once for each new battery cycle</div>
+      </div>
+
     </div>
 
     <div class="chart-section">
@@ -783,7 +753,6 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Voltage Trend</h2>
-         
         </div>
         <canvas id="voltageChart"></canvas>
       </div>
@@ -791,7 +760,6 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Current Trend</h2>
-          
         </div>
         <canvas id="currentChart"></canvas>
       </div>
@@ -799,15 +767,22 @@
       <div class="chart-card">
         <div class="chart-header">
           <h2 class="chart-title">Temperature Trend</h2>
-         
         </div>
         <canvas id="temperatureChart"></canvas>
+      </div>
+
+      <div class="chart-card">
+        <div class="chart-header">
+          <h2 class="chart-title">SOH by Battery Cycle</h2>
+          <div class="chart-note">One ML prediction per new cycle</div>
+        </div>
+        <canvas id="sohChart"></canvas>
       </div>
 
     </div>
 
     <div class="footer">
-      Designed from amedu creations | Smart Battery Monitoring and Cloud Data Logging System
+      Designed from amedu creations | Smart Battery Monitoring, Azure Cloud Logging and Cycle-Triggered SOH Estimation
     </div>
 
   </div>
@@ -819,105 +794,86 @@
   Chart.defaults.borderColor = "rgba(148, 163, 184, 0.15)";
   Chart.defaults.font.family = "Segoe UI";
 
-  const voltageChart = new Chart(document.getElementById("voltageChart"), {
-    type: "line",
-    data: {
-      labels: [],
-      datasets: [{
-        label: "Voltage (V)",
-        data: [],
-        borderColor: "#38bdf8",
-        backgroundColor: "rgba(56, 189, 248, 0.12)",
-        fill: true,
-        tension: 0.35,
-        borderWidth: 3,
-        pointRadius: 2,
-        pointHoverRadius: 5
-      }]
-    },
-    options: {
-      responsive: true,
-      animation: false,
-      plugins: {
-        legend: {
-          labels: { color: "#cbd5e1" }
-        }
+  function createLineChart(canvasId, label, borderColor, backgroundColor, extraOptions = {}) {
+    return new Chart(document.getElementById(canvasId), {
+      type: "line",
+      data: {
+        labels: [],
+        datasets: [{
+          label,
+          data: [],
+          borderColor,
+          backgroundColor,
+          fill: true,
+          tension: 0.35,
+          borderWidth: 3,
+          pointRadius: extraOptions.pointRadius ?? 2,
+          pointHoverRadius: extraOptions.pointHoverRadius ?? 5
+        }]
       },
-      scales: {
-        y: {
-          beginAtZero: true
+      options: {
+        responsive: true,
+        animation: false,
+        plugins: {
+          legend: {
+            labels: { color: "#cbd5e1" }
+          }
+        },
+        scales: {
+          y: extraOptions.y || { beginAtZero: true }
         }
       }
-    }
-  });
+    });
+  }
 
-  const currentChart = new Chart(document.getElementById("currentChart"), {
-    type: "line",
-    data: {
-      labels: [],
-      datasets: [{
-        label: "Current (A)",
-        data: [],
-        borderColor: "#22c55e",
-        backgroundColor: "rgba(34, 197, 94, 0.12)",
-        fill: true,
-        tension: 0.35,
-        borderWidth: 3,
-        pointRadius: 2,
-        pointHoverRadius: 5
-      }]
-    },
-    options: {
-      responsive: true,
-      animation: false,
-      plugins: {
-        legend: {
-          labels: { color: "#cbd5e1" }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true
-        }
-      }
-    }
-  });
+  const voltageChart = createLineChart(
+    "voltageChart",
+    "Voltage (V)",
+    "#38bdf8",
+    "rgba(56, 189, 248, 0.12)"
+  );
 
-  const temperatureChart = new Chart(document.getElementById("temperatureChart"), {
-    type: "line",
-    data: {
-      labels: [],
-      datasets: [{
-        label: "Temperature (°C)",
-        data: [],
-        borderColor: "#f97316",
-        backgroundColor: "rgba(249, 115, 22, 0.12)",
-        fill: true,
-        tension: 0.35,
-        borderWidth: 3,
-        pointRadius: 2,
-        pointHoverRadius: 5
-      }]
-    },
-    options: {
-      responsive: true,
-      animation: false,
-      plugins: {
-        legend: {
-          labels: { color: "#cbd5e1" }
-        }
-      },
-      scales: {
-        y: {
-          beginAtZero: true
-        }
+  const currentChart = createLineChart(
+    "currentChart",
+    "Current (A)",
+    "#22c55e",
+    "rgba(34, 197, 94, 0.12)"
+  );
+
+  const temperatureChart = createLineChart(
+    "temperatureChart",
+    "Temperature (°C)",
+    "#f97316",
+    "rgba(249, 115, 22, 0.12)"
+  );
+
+  const sohChart = createLineChart(
+    "sohChart",
+    "SOH (%)",
+    "#a855f7",
+    "rgba(168, 85, 247, 0.12)",
+    {
+      pointRadius: 4,
+      pointHoverRadius: 6,
+      y: {
+        suggestedMin: 80,
+        suggestedMax: 100
       }
     }
-  });
+  );
+
+  function hasNumericValue(value) {
+    return (
+      value !== null &&
+      value !== undefined &&
+      value !== "" &&
+      Number.isFinite(Number(value))
+    );
+  }
 
   function setGauge(elementId, value, color) {
     const gauge = document.getElementById(elementId);
-    const safeValue = Math.max(0, Math.min(100, Number(value)));
+    const safeValue = Math.max(0, Math.min(100, Number(value) || 0));
     const degree = safeValue * 3.6;
 
     gauge.style.background =
@@ -942,7 +898,7 @@
   }
 
   function setBatteryFill(soc) {
-    const safeSoc = Math.max(0, Math.min(100, Number(soc)));
+    const safeSoc = Math.max(0, Math.min(100, Number(soc) || 0));
     const fill = document.getElementById("batteryFill");
 
     fill.style.width = safeSoc + "%";
@@ -963,7 +919,8 @@
     const alertBox = document.getElementById("alertMessage");
 
     if (!result.online) {
-      alertBox.innerText = "ESP32 is offline. Dashboard values are reset to zero. Graph remains at the last saved telemetry point.";
+      alertBox.innerText =
+        "ESP32 is offline. Live telemetry values are zero. The latest stored ML SOH remains available.";
       alertBox.style.color = "#fca5a5";
       return;
     }
@@ -973,19 +930,27 @@
     const temperature = Number(result.temperature);
     const soc = Number(result.soc);
     const estimatedRange = Number(result.estimated_range_km);
+    const soh = hasNumericValue(result.soh) ? Number(result.soh) : null;
 
     if (temperature >= 50) {
-      alertBox.innerText = "High battery temperature detected. Check cooling and battery safety.";
+      alertBox.innerText =
+        "High battery temperature detected. Check cooling and battery safety.";
       alertBox.style.color = "#fdba74";
+    } else if (soh !== null && soh <= 80) {
+      alertBox.innerText =
+        `Battery SOH is ${soh.toFixed(2)}%. Battery health has reached the defined end-of-life threshold region.`;
+      alertBox.style.color = "#fca5a5";
     } else if (soc <= 20) {
       alertBox.innerText =
         `Low battery charge level. Estimated range: ${estimatedRange.toFixed(2)} km. Recharge battery soon.`;
       alertBox.style.color = "#fde68a";
     } else if (voltage <= 30) {
-      alertBox.innerText = "Battery voltage is near empty level. Avoid deep discharge.";
+      alertBox.innerText =
+        "Battery voltage is near empty level. Avoid deep discharge.";
       alertBox.style.color = "#fde68a";
     } else if (current >= 20) {
-      alertBox.innerText = "High current draw detected. Check load condition and wiring.";
+      alertBox.innerText =
+        "High current draw detected. Check load condition and wiring.";
       alertBox.style.color = "#fdba74";
     } else {
       alertBox.innerText =
@@ -1003,24 +968,29 @@
     document.getElementById("current").innerText = "0.000 A";
     document.getElementById("temperature").innerText = "0.00 °C";
     document.getElementById("signal").innerText = "0 %";
-    document.getElementById("cycleCount").innerText = "10.000";
+    document.getElementById("cycleCount").innerText = "--";
     document.getElementById("estimatedRange").innerText = "0.00 km";
+    document.getElementById("solHealthMargin").innerText = "-- %";
+    document.getElementById("lastSohPrediction").innerText = "--";
 
     document.getElementById("socGaugeValue").innerText = "0";
-    document.getElementById("sohGaugeValue").innerText = "96.5";
+    document.getElementById("sohGaugeValue").innerText = "--";
     document.getElementById("batteryPercent").innerText = "0%";
 
     setGauge("socGauge", 0, "#22c55e");
-    setGauge("sohGauge", 96.5, "#38bdf8");
+    setGauge("sohGauge", 0, "#38bdf8");
     setBatteryFill(0);
   }
 
   async function loadLatestData() {
     try {
-      const response = await fetch(API_BASE + "/api/latest");
+      const response = await fetch(API_BASE + "/api/latest", {
+        cache: "no-store"
+      });
+
       const result = await response.json();
 
-      if (!result.ok) {
+      if (!response.ok || !result.ok) {
         setStatus("OFFLINE");
         updateZeroUI();
         return;
@@ -1028,14 +998,21 @@
 
       setStatus(result.status);
 
-      const voltage = Number(result.voltage);
-      const current = Number(result.current);
-      const temperature = Number(result.temperature);
-      const signal = Number(result.gsm_signal);
-      const soc = Number(result.soc);
-      const soh = Number(result.soh);
-      const cycleCount = Number(result.cycle_count);
-      const estimatedRange = Number(result.estimated_range_km);
+      const voltage = hasNumericValue(result.voltage) ? Number(result.voltage) : 0;
+      const current = hasNumericValue(result.current) ? Number(result.current) : 0;
+      const temperature = hasNumericValue(result.temperature) ? Number(result.temperature) : 0;
+      const signal = hasNumericValue(result.gsm_signal) ? Number(result.gsm_signal) : 0;
+      const soc = hasNumericValue(result.soc) ? Number(result.soc) : 0;
+      const soh = hasNumericValue(result.soh) ? Number(result.soh) : null;
+      const solHealthMargin = hasNumericValue(result.sol_health_margin)
+        ? Number(result.sol_health_margin)
+        : null;
+      const cycleCount = hasNumericValue(result.cycle_count)
+        ? Number(result.cycle_count)
+        : null;
+      const estimatedRange = hasNumericValue(result.estimated_range_km)
+        ? Number(result.estimated_range_km)
+        : 0;
 
       document.getElementById("heroVoltage").innerText = voltage.toFixed(2);
       document.getElementById("heroCurrent").innerText = current.toFixed(3) + " A";
@@ -1047,28 +1024,43 @@
       document.getElementById("signal").innerText = signal.toFixed(0) + " %";
 
       document.getElementById("socGaugeValue").innerText = soc.toFixed(0);
-      document.getElementById("sohGaugeValue").innerText = soh.toFixed(1);
-      document.getElementById("cycleCount").innerText = cycleCount.toFixed(3);
-      document.getElementById("estimatedRange").innerText = estimatedRange.toFixed(2) + " km";
-      document.getElementById("batteryPercent").innerText = soc.toFixed(0) + "%";
+      document.getElementById("sohGaugeValue").innerText =
+        soh === null ? "--" : soh.toFixed(2);
+
+      document.getElementById("cycleCount").innerText =
+        cycleCount === null ? "--" : String(cycleCount);
+
+      document.getElementById("estimatedRange").innerText =
+        estimatedRange.toFixed(2) + " km";
+
+      document.getElementById("solHealthMargin").innerText =
+        solHealthMargin === null
+          ? "-- %"
+          : solHealthMargin.toFixed(2) + " %";
+
+      document.getElementById("batteryPercent").innerText =
+        soc.toFixed(0) + "%";
+
+      if (result.soh_updated_at) {
+        document.getElementById("lastSohPrediction").innerText =
+          new Date(result.soh_updated_at).toLocaleString();
+      } else {
+        document.getElementById("lastSohPrediction").innerText = "--";
+      }
 
       setGauge("socGauge", soc, "#22c55e");
-      setGauge("sohGauge", soh, "#38bdf8");
+      setGauge("sohGauge", soh === null ? 0 : soh, "#38bdf8");
       setBatteryFill(soc);
 
-      if (result.age_seconds === null || result.age_seconds === undefined) {
-        document.getElementById("age").innerText = "-- s";
-      } else {
-        document.getElementById("age").innerText =
-          Number(result.age_seconds).toFixed(0) + " s";
-      }
+      document.getElementById("age").innerText =
+        result.age_seconds === null || result.age_seconds === undefined
+          ? "-- s"
+          : Number(result.age_seconds).toFixed(0) + " s";
 
-      if (result.created_at === null) {
-        document.getElementById("lastUpdated").innerText = "--";
-      } else {
-        document.getElementById("lastUpdated").innerText =
-          new Date(result.created_at).toLocaleString();
-      }
+      document.getElementById("lastUpdated").innerText =
+        result.created_at === null || result.created_at === undefined
+          ? "--"
+          : new Date(result.created_at).toLocaleString();
 
       updateAlert(result);
 
@@ -1081,48 +1073,76 @@
 
   async function loadHistoryData() {
     try {
-      const response = await fetch(API_BASE + "/api/history");
+      const response = await fetch(API_BASE + "/api/history", {
+        cache: "no-store"
+      });
+
       const result = await response.json();
 
-      // Do not clear graph when ESP32 is offline.
-      // Graph should stop at last real stored reading.
-      if (!result.ok || !result.data || result.data.length === 0) {
+      if (!response.ok || !result.ok || !result.data || result.data.length === 0) {
         return;
       }
 
-      const labels = result.data.map(row => {
-        return new Date(row.created_at).toLocaleTimeString();
-      });
-
-      const voltageData = result.data.map(row => Number(row.voltage));
-      const currentData = result.data.map(row => Number(row.current));
-      const temperatureData = result.data.map(row => Number(row.temperature));
+      const labels = result.data.map(row =>
+        new Date(row.created_at).toLocaleTimeString()
+      );
 
       voltageChart.data.labels = labels;
-      voltageChart.data.datasets[0].data = voltageData;
+      voltageChart.data.datasets[0].data =
+        result.data.map(row => Number(row.voltage));
       voltageChart.update();
 
       currentChart.data.labels = labels;
-      currentChart.data.datasets[0].data = currentData;
+      currentChart.data.datasets[0].data =
+        result.data.map(row => Number(row.current));
       currentChart.update();
 
       temperatureChart.data.labels = labels;
-      temperatureChart.data.datasets[0].data = temperatureData;
+      temperatureChart.data.datasets[0].data =
+        result.data.map(row => Number(row.temperature));
       temperatureChart.update();
 
     } catch (error) {
       console.log("History data error:", error);
-      // Keep old graph visible if API temporarily fails
+    }
+  }
+
+  async function loadSOHHistoryData() {
+    try {
+      const response = await fetch(API_BASE + "/api/health/history", {
+        cache: "no-store"
+      });
+
+      const result = await response.json();
+
+      if (
+        !response.ok ||
+        !result.ok ||
+        !Array.isArray(result.history)
+      ) {
+        return;
+      }
+
+      sohChart.data.labels =
+        result.history.map(row => "Cycle " + row.cycle_count);
+
+      sohChart.data.datasets[0].data =
+        result.history.map(row => Number(row.soh));
+
+      sohChart.update();
+
+    } catch (error) {
+      console.log("SOH history data error:", error);
     }
   }
 
   function refreshDashboard() {
     loadLatestData();
     loadHistoryData();
+    loadSOHHistoryData();
   }
 
   refreshDashboard();
-
   setInterval(refreshDashboard, 5000);
 </script>
 
