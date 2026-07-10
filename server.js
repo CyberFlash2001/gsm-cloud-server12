@@ -2,6 +2,10 @@ const express = require("express");
 const mysql = require("mysql2/promise");
 const path = require("path");
 
+const {
+  predictSOHFromAzureML
+} = require("./app_service_ml_helper");
+
 const app = express();
 
 app.use(express.json({ limit: "1mb" }));
